@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 📦 REPOSITORY ROLE - Pour débutants
+ * REPOSITORY ROLE - Pour débutants
  *
  * Qu'est-ce qu'un Repository ?
  * - C'est une interface qui permet de communiquer avec la base de données
@@ -23,7 +23,7 @@ import org.springframework.stereotype.Repository;
  * - findAll() : Récupérer tous les rôles
  * - delete(role) : Supprimer un rôle
  *
- * ✨ NOUVEAU : Utilise maintenant RoleType (enum) au lieu de String
+ * NOUVEAU : Utilise maintenant RoleType (enum) au lieu de String
  */
 @Repository
 public interface RoleRepository extends JpaRepository<Role, Long> {

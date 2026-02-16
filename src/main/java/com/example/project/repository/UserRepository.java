@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * 📦 REPOSITORY USER - Pour débutants
+ * REPOSITORY USER - Pour débutants
  *
  * Qu'est-ce qu'un Repository ?
  * - C'est une interface qui permet de communiquer avec la base de données

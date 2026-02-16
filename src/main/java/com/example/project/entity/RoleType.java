@@ -6,10 +6,10 @@ package com.example.project.entity;
  * Un Enum (énumération) est un type spécial qui définit un ensemble fixe de constantes
  *
  * Pourquoi un Enum pour les rôles ?
- * - ✅ Garantit que seules les valeurs ADMIN et USER sont possibles
- * - ✅ Évite les erreurs de typo (ex: "ADMN" ou "user" au lieu de "ADMIN" ou "USER")
- * - ✅ Auto-complétion dans l'IDE
- * - ✅ Plus sûr et maintenable qu'un String
+ * - Garantit que seules les valeurs ADMIN et USER sont possibles
+ * - Évite les erreurs de typo (ex: "ADMN" ou "user" au lieu de "ADMIN" ou "USER")
+ * - Auto-complétion dans l'IDE
+ * - Plus sûr et maintenable qu'un String
  *
  * Valeurs possibles :
  * - ADMIN : Administrateur avec toutes les permissions

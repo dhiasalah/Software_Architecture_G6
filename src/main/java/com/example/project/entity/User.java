@@ -9,9 +9,8 @@ import lombok.Data;
  * Cette classe représente un UTILISATEUR de l'application
  *
  * Changements appliqués :
- * - ❌ Ancienne version : role était un simple String
- * - ✅ Nouvelle version : role est une relation vers la classe Role
- * - ✨ NOUVEAU : Les credentials (email, phone, password) sont dans une classe séparée
+ * - Nouvelle version : role est une relation vers la classe Role
+ * - NOUVEAU : Les credentials (email, phone, password) sont dans une classe séparée
  *
  * Avantages :
  * - Meilleure organisation du code
@@ -38,7 +37,14 @@ public class User {
     private String username;
 
     /**
-     * 🔐 RELATION AVEC ROLE
+     * Indique si le compte utilisateur est activé
+     * Par défaut : true (compte activé)
+     */
+    @Column(nullable = false)
+    private Boolean enabled = true;
+
+    /**
+     * RELATION AVEC ROLE
      *
      * @ManyToOne : Plusieurs utilisateurs peuvent avoir le MÊME rôle
      *              (ex: 100 utilisateurs avec le rôle "USER")
@@ -54,7 +60,7 @@ public class User {
     private Role role;
 
     /**
-     * 🔑 RELATION AVEC CREDENTIALS (One-to-One)
+     * RELATION AVEC CREDENTIALS (One-to-One)
      *
      * @OneToOne : Une relation 1:1 avec Credentials
      * mappedBy = "user" : Indique que la relation est gérée par le champ "user" dans Credentials

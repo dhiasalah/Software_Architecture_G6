@@ -39,7 +39,7 @@ public class UserController {
     private final UserService userService;
 
     /**
-     * 📖 READ ALL - Récupérer tous les utilisateurs
+     * READ ALL - Récupérer tous les utilisateurs
      *
      * Endpoint : GET /api/users
      * Exemple : http://localhost:8080/api/users
@@ -57,7 +57,7 @@ public class UserController {
     }
 
     /**
-     * 📖 READ ONE - Récupérer un utilisateur par son ID
+     * READ ONE - Récupérer un utilisateur par son ID
      *
      * Endpoint : GET /api/users/{id}
      * Exemple : http://localhost:8080/api/users/1
@@ -77,7 +77,7 @@ public class UserController {
     }
 
     /**
-     * ➕ CREATE - Créer un nouvel utilisateur
+     * CREATE - Créer un nouvel utilisateur
      *
      * Endpoint : POST /api/users
      * Exemple : http://localhost:8080/api/users
@@ -107,7 +107,7 @@ public class UserController {
     }
 
     /**
-     * ✏️ UPDATE - Modifier un utilisateur existant
+     * UPDATE - Modifier un utilisateur existant
      *
      * Endpoint : PUT /api/users/{id}
      * Exemple : http://localhost:8080/api/users/1
@@ -140,7 +140,7 @@ public class UserController {
     }
 
     /**
-     * ❌ DELETE - Supprimer un utilisateur
+     * DELETE - Supprimer un utilisateur
      *
      * Endpoint : DELETE /api/users/{id}
      * Exemple : http://localhost:8080/api/users/1

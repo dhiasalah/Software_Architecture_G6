@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 /**
- * 🔐 CLASSE ROLE - Pour débutants
+ * CLASSE ROLE - Pour débutants
  *
  * Cette classe représente un RÔLE d'utilisateur (ADMIN ou USER uniquement)
  *
@@ -13,7 +13,7 @@ import lombok.Data;
  * - Facilite l'ajout de nouveaux rôles sans modifier User
  * - Permet à un utilisateur d'avoir plusieurs rôles (future évolution)
  *
- * ✨ NOUVEAU : Utilise maintenant l'Enum RoleType pour garantir des valeurs valides
+ *  NOUVEAU : Utilise maintenant l'Enum RoleType pour garantir des valeurs valides
  */
 @Entity
 @Table(name = "roles")

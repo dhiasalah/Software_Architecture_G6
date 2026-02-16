@@ -6,7 +6,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 /**
- * 🔑 CLASSE CREDENTIALS - Pour débutants
+ * CLASSE CREDENTIALS - Pour débutants
  *
  * Cette classe représente les IDENTIFIANTS d'un utilisateur
  *
@@ -63,7 +63,7 @@ public class Credentials {
     private String password;
 
     /**
-     * 🔗 RELATION AVEC USER (One-to-One)
+     * RELATION AVEC USER (One-to-One)
      *
      * @OneToOne : Une relation 1:1 avec User
      * @JoinColumn : Crée une colonne "user_id" dans la table "credentials"
