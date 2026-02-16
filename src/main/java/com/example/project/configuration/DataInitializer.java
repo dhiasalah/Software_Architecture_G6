@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * Pourquoi ?
  * - Pour créer les rôles par défaut dans la base de données
  * - Sans cela, l'inscription échouerait car le rôle "USER" n'existe pas
- *
+
  * ✨ NOUVEAU : Utilise l'Enum RoleType pour garantir uniquement ADMIN et USER
  *
  * @Component : Indique à Spring de gérer cette classe
@@ -27,12 +27,8 @@ public class DataInitializer implements CommandLineRunner {
 
     private final RoleRepository roleRepository;
 
-    /**
-     * Cette méthode s'exécute automatiquement au démarrage
-     */
     @Override
     public void run(String... args) throws Exception {
-        // Créer le rôle USER s'il n'existe pas
         if (roleRepository.findByName(RoleType.USER) == null) {
             Role userRole = new Role();
             userRole.setName(RoleType.USER);
@@ -41,7 +37,6 @@ public class DataInitializer implements CommandLineRunner {
             System.out.println("✅ Rôle USER créé avec succès");
         }
 
-        // Créer le rôle ADMIN s'il n'existe pas
         if (roleRepository.findByName(RoleType.ADMIN) == null) {
             Role adminRole = new Role();
             adminRole.setName(RoleType.ADMIN);
