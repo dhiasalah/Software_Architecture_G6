@@ -593,9 +593,42 @@ Credentials findByPhoneNumber(String phoneNumber);
 
 - Java 17+
 - Maven
-- PostgreSQL (avec une base `project_spring`)
+- Docker (recommandé) ou PostgreSQL installé localement
 
-### 2. Configuration
+### 2. Lancer PostgreSQL avec Docker
+
+La méthode la plus simple pour démarrer PostgreSQL est d'utiliser Docker :
+
+```bash
+# Télécharger l'image PostgreSQL et démarrer le conteneur
+docker run --name postgres \
+  -e POSTGRES_PASSWORD=dhia \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=project_spring \
+  -p 5432:5432 \
+  -d postgres:latest
+```
+
+**Commandes utiles Docker :**
+
+```bash
+# Vérifier que le conteneur est en cours d'exécution
+docker ps -f name=postgres
+
+# Arrêter le conteneur
+docker stop postgres
+
+# Redémarrer le conteneur
+docker start postgres
+
+# Supprimer le conteneur (si besoin de réinitialiser)
+docker rm -f postgres
+
+# Se connecter à PostgreSQL dans le conteneur
+docker exec -it postgres psql -U postgres -d project_spring
+```
+
+### 3. Configuration
 
 Modifier `src/main/resources/application.properties` :
 ```properties
@@ -604,17 +637,17 @@ spring.datasource.username=postgres
 spring.datasource.password=votre_mot_de_passe
 ```
 
-### 3. Lancer l'application
+### 4. Lancer l'application
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-### 4. Accéder à Swagger
+### 5. Accéder à Swagger
 
 Ouvrir : http://localhost:8080/swagger-ui.html
 
-### 5. Tester l'API
+### 6. Tester l'API
 
 1. **S'inscrire** : POST `/api/auth/register`
 2. **Se connecter** : POST `/api/auth/login` → récupérer le token
