@@ -40,8 +40,16 @@ public class User {
      * Indique si le compte utilisateur est activé
      * Par défaut : true (compte activé)
      */
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT true")
     private Boolean enabled = true;
+
+    /**
+     * Indique si l'e-mail de l'utilisateur a été vérifié
+     * Par défaut : false (non vérifié)
+     * Passe à true après clic sur le lien de vérification reçu par e-mail
+     */
+    @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT false")
+    private Boolean verified = false;
 
     /**
      * RELATION AVEC ROLE

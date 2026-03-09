@@ -1,0 +1,10 @@
+target/
+.git/
+.idea/
+*.iml
+.gitignore
+.gitattributes
+README.md
+improvements
+TP-Verification-Email-RabbitMQ.md
+test-services.bat
