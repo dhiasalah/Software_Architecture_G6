@@ -17,18 +17,21 @@
 #    - Port 1025 : port SMTP (Spring Boot envoie des e-mails)
 #    - Port 8025 : boîte de réception web → http://localhost:8025
 #
-# 4. BACKEND (Spring Boot)
-#    - Port 8080 : API REST (accessible aussi via Nginx sur le port 80)
+# 4. BACKEND (Spring Boot) x3 instances
+#    - Port interne 8080 (non expose sur l'hote)
+#    - 3 replicas par defaut (load balancing via Nginx)
 #    - Utilise le profil "docker" (application-docker.properties)
 #
-# 5. NGINX (API Gateway / Reverse Proxy)
+# 5. NGINX (API Gateway / Reverse Proxy + Load Balancer)
 #    - Port 80 : point d'entrée unique pour le client
+#    - Repartit les requetes entre les 3 instances backend (round-robin)
 #
 # COMMENT UTILISER :
 #   Tout démarrer :  docker-compose up -d --build
 #   Tout arrêter  :  docker-compose down
 #   Voir les logs :  docker-compose logs -f
 #   Logs backend  :  docker-compose logs -f backend
+#   Scaler le backend : docker-compose up -d --scale backend=5
 #
 # PRÉREQUIS : Docker et Docker Compose installés
 # ==============================================================================
@@ -90,18 +93,27 @@ services:
       - "8025:8025"  # Port Web UI (boîte de réception)
 
   # ============================================
-  # BACKEND - Spring Boot Application
+  # BACKEND - Spring Boot Application (avec Load Balancing)
   # ============================================
   # Le backend est compilé et lancé dans un container Docker.
   # Il utilise le profil "docker" qui remplace localhost par les noms
   # de service Docker (postgres, rabbitmq, mailhog).
+  #
+  # LOAD BALANCING :
+  #   - deploy.replicas: 3 → lance 3 instances du backend
+  #   - Pas de container_name (sinon on ne peut pas avoir plusieurs instances)
+  #   - Pas de port fixe 8080:8080 (sinon conflit entre instances)
+  #   - Nginx repartit les requetes entre les 3 instances automatiquement
+  #   - Pour changer le nombre d'instances : docker-compose up -d --scale backend=5
   backend:
     build:
       context: .           # Le Dockerfile est à la racine du projet
       dockerfile: Dockerfile
-    container_name: backend
-    ports:
-      - "8080:8080"        # API REST accessible sur http://localhost:8080
+    # PAS de container_name ici → permet de lancer plusieurs instances
+    # PAS de ports: "8080:8080" → seul Nginx expose le port 80, les backends
+    #   sont accessibles uniquement via le reseau Docker interne
+    expose:
+      - "8080"             # Port visible uniquement dans le reseau Docker (pas sur l'hote)
     depends_on:
       postgres:
         condition: service_healthy    # Attend que PostgreSQL soit prêt
@@ -110,10 +122,10 @@ services:
       mailhog:
         condition: service_started    # Attend que MailHog ait démarré
     environment:
-      # Le profil "docker" est déjà activé dans le Dockerfile (ENTRYPOINT)
-      # Mais on peut aussi le forcer ici :
       SPRING_PROFILES_ACTIVE: docker
-    restart: on-failure     # Redémarre automatiquement en cas d'erreur
+    restart: on-failure
+    deploy:
+      replicas: 3          # Lance 3 instances du backend pour le load balancing
 
   # ============================================
   # NGINX - API Gateway / Reverse Proxy

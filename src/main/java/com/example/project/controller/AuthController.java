@@ -11,6 +11,7 @@ import com.example.project.repository.RoleRepository;
 import com.example.project.repository.UserRepository;
 import com.example.project.repository.VerificationTokenRepository;
 import com.example.project.service.CustomUserDetailsService;
+import com.example.project.service.TokenBlacklistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -74,6 +75,13 @@ public class AuthController {
     private final JwtUtils jwtUtils;
     private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService customUserDetailsService;
+
+    /**
+     * Service de blacklist des tokens JWT (pour le logout)
+     * Quand un utilisateur se déconnecte, son token est ajouté à la blacklist
+     * et ne sera plus accepté par le JwtFilter
+     */
+    private final TokenBlacklistService tokenBlacklistService;
 
     /**
      * RabbitTemplate = l'outil pour PUBLIER des messages dans RabbitMQ
@@ -301,7 +309,40 @@ public class AuthController {
     }
 
     // =====================================================================
-    // ENDPOINT 4 : GET /api/auth/validate - VALIDATION JWT (pour Nginx)
+    // ENDPOINT 4 : POST /api/auth/logout - DÉCONNEXION
+    // =====================================================================
+
+    @PostMapping("/logout")
+    @Operation(
+        summary = "Déconnexion d'un utilisateur",
+        description = "Invalide le token JWT en l'ajoutant à une blacklist. " +
+                      "Le token ne sera plus accepté par le serveur même s'il n'est pas encore expiré. " +
+                      "Le client doit envoyer le header Authorization avec le token à invalider."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Déconnexion réussie"),
+            @ApiResponse(responseCode = "400", description = "Token absent ou invalide")
+    })
+    public ResponseEntity<?> logout(jakarta.servlet.http.HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+
+        // --- ÉTAPE 1 : Vérifier que le header Authorization est présent ---
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.badRequest().body("Missing or invalid Authorization header");
+        }
+
+        // --- ÉTAPE 2 : Extraire le token et l'ajouter à la blacklist ---
+        String jwt = authHeader.substring(7); // Enlever "Bearer "
+        tokenBlacklistService.blacklist(jwt);
+        System.out.println("🚪 Logout : token blacklisté pour " + jwtUtils.extractUsername(jwt));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Déconnexion réussie. Le token a été invalidé.");
+        return ResponseEntity.ok(response);
+    }
+
+    // =====================================================================
+    // ENDPOINT 5 : GET /api/auth/validate - VALIDATION JWT (pour Nginx)
     // =====================================================================
 
     @GetMapping("/validate")

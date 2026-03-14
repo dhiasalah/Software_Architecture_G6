@@ -22,11 +22,12 @@
 12. [Messagerie asynchrone : RabbitMQ](#12-messagerie-asynchrone-rabbitmq)
 13. [Verification d'e-mail : le flux complet](#13-verification-demail-le-flux-complet)
 14. [API Gateway : Nginx](#14-api-gateway-nginx)
-15. [Conteneurisation : Docker](#15-conteneurisation-docker)
-16. [Documentation API : Swagger / OpenAPI](#16-documentation-api-swagger--openapi)
-17. [Comment lancer le projet](#17-comment-lancer-le-projet)
-18. [Comment tester le projet](#18-comment-tester-le-projet)
-19. [Resume pour le pitch](#19-resume-pour-le-pitch)
+15. [Load Balancing : repartition de charge](#15-load-balancing-repartition-de-charge)
+16. [Conteneurisation : Docker](#16-conteneurisation-docker)
+17. [Documentation API : Swagger / OpenAPI](#17-documentation-api-swagger--openapi)
+18. [Comment lancer le projet](#18-comment-lancer-le-projet)
+19. [Comment tester le projet](#19-comment-tester-le-projet)
+20. [Resume pour le pitch](#20-resume-pour-le-pitch)
 
 ---
 
@@ -41,17 +42,18 @@ Une **API REST complete** avec :
 - **Gestion des utilisateurs** (CRUD) protegee par roles (ADMIN/USER)
 - **Messagerie asynchrone** via RabbitMQ pour l'envoi d'e-mails
 - **API Gateway** Nginx qui valide le JWT avant de transmettre au backend
-- **Tout conteneurise** dans Docker (base de donnees, backend, messagerie, mail, proxy)
+- **Load Balancing** Nginx repartit les requetes entre 3 instances du backend (round-robin)
+- **Tout conteneurise** dans Docker (base de donnees, backend x3, messagerie, mail, proxy)
 
-## Les 5 services Docker
+## Les 7 containers Docker (5 services)
 
-| Service | Image | Port | Role |
-|---------|-------|------|------|
-| **PostgreSQL** | `postgres:16-alpine` | 5432 | Base de donnees relationnelle |
-| **RabbitMQ** | `rabbitmq:3-management` | 5672 + 15672 | Messagerie asynchrone entre services |
-| **MailHog** | `mailhog/mailhog` | 1025 + 8025 | Faux serveur SMTP (capture les e-mails) |
-| **Backend** | Build depuis Dockerfile | 8080 | API Spring Boot (notre application) |
-| **Nginx** | `nginx:alpine` | 80 | Reverse proxy + validation JWT |
+| Service | Image | Instances | Port | Role |
+|---------|-------|-----------|------|------|
+| **PostgreSQL** | `postgres:16-alpine` | 1 | 5432 | Base de donnees relationnelle |
+| **RabbitMQ** | `rabbitmq:3-management` | 1 | 5672 + 15672 | Messagerie asynchrone entre services |
+| **MailHog** | `mailhog/mailhog` | 1 | 1025 + 8025 | Faux serveur SMTP (capture les e-mails) |
+| **Backend** | Build depuis Dockerfile | **3** | 8080 (interne) | API Spring Boot (load balanced) |
+| **Nginx** | `nginx:alpine` | 1 | 80 | Reverse proxy + load balancer + validation JWT |
 
 ---
 
@@ -63,7 +65,7 @@ Une **API REST complete** avec :
 Client (Navigateur / Postman / curl)
     |
     v
-[NGINX - Port 80] ---- API Gateway / Reverse Proxy
+[NGINX - Port 80] ---- API Gateway / Reverse Proxy / Load Balancer
     |
     |-- Routes publiques (/api/auth/*) --> passent directement
     |-- Routes protegees (/api/users/*) --> Nginx verifie le JWT d'abord
@@ -72,31 +74,34 @@ Client (Navigateur / Postman / curl)
     |       |--> Si 200 (JWT valide) --> transmet au backend
     |       |--> Si 401 (JWT invalide) --> bloque la requete
     |
-    v
-[BACKEND Spring Boot - Port 8080]
+    |-- LOAD BALANCING (round-robin entre 3 instances) :
     |
-    |-- AuthController (/api/auth/*)
-    |       |-- POST /register  --> cree user + publie evenement RabbitMQ
-    |       |-- POST /login     --> retourne un JWT
-    |       |-- GET  /verify    --> verifie le token e-mail
-    |       |-- GET  /validate  --> valide un JWT (utilise par Nginx)
-    |
-    |-- UserController (/api/users/*)
-    |       |-- GET    /         --> liste tous les users (ADMIN)
-    |       |-- GET    /{id}     --> un user par ID (ADMIN)
-    |       |-- POST   /         --> cree un user (ADMIN)
-    |       |-- PUT    /{id}     --> modifie un user (ADMIN)
-    |       |-- DELETE /{id}     --> supprime un user (ADMIN)
-    |
-    v
-[PostgreSQL - Port 5432] ---- Base de donnees
+    |-----> [Backend Instance 1 - 172.18.0.5:8080]
+    |-----> [Backend Instance 2 - 172.18.0.6:8080]
+    |-----> [Backend Instance 3 - 172.18.0.7:8080]
+                |
+                |-- AuthController (/api/auth/*)
+                |       |-- POST /register  --> cree user + publie evenement RabbitMQ
+                |       |-- POST /login     --> retourne un JWT
+                |       |-- GET  /verify    --> verifie le token e-mail
+                |       |-- GET  /validate  --> valide un JWT (utilise par Nginx)
+                |
+                |-- UserController (/api/users/*)
+                |       |-- GET    /         --> liste tous les users (ADMIN)
+                |       |-- GET    /{id}     --> un user par ID (ADMIN)
+                |       |-- POST   /         --> cree un user (ADMIN)
+                |       |-- PUT    /{id}     --> modifie un user (ADMIN)
+                |       |-- DELETE /{id}     --> supprime un user (ADMIN)
+                |
+                v
+[PostgreSQL - Port 5432] ---- Base de donnees (partagee par les 3 instances)
     Tables : users, credentials, roles, verification_tokens
 
-    |
-[RabbitMQ - Port 5672] ---- Messagerie
+                |
+[RabbitMQ - Port 5672] ---- Messagerie (partagee par les 3 instances)
     |
     v
-[NotificationListener] ---- consomme les evenements
+[NotificationListener] ---- consomme les evenements (1 seule instance traite chaque message)
     |
     v
 [MailHog - Port 1025] ---- recoit les e-mails (Port 8025 = interface web)
@@ -161,6 +166,7 @@ project/
 |   |   |-- UserService.java         <-- CRUD utilisateurs
 |   |   |-- CustomUserDetailsService.java  <-- Charge un user pour Spring Security
 |   |   |-- NotificationListener.java      <-- Consomme RabbitMQ + envoie e-mail
+|   |   |-- TokenBlacklistService.java     <-- Blacklist JWT pour le logout
 |   |
 |   |-- controller/                  <-- Endpoints REST
 |   |   |-- AuthController.java      <-- /api/auth/* (register, login, verify, validate)
@@ -542,6 +548,33 @@ public void handleUserRegistered(UserRegisteredEvent event) {
 2. Si ca echoue encore → message envoye dans la **DLQ** (Dead Letter Queue)
 3. On peut inspecter les messages en erreur dans http://localhost:15672
 
+## 9.4 TokenBlacklistService.java
+
+**Role :** Gere la blacklist des tokens JWT pour le logout.
+
+**Probleme :** Avec JWT stateless, le serveur ne stocke pas de session. Quand un utilisateur se deconnecte, son JWT est encore valide (il expire dans 15 min). Un attaquant qui a vole le token pourrait l'utiliser.
+
+**Solution :** On stocke les tokens invalides dans un `Set<String>` thread-safe en memoire.
+
+```java
+@Service
+public class TokenBlacklistService {
+    private final Set<String> blacklistedTokens = ConcurrentHashMap.newKeySet();
+
+    public void blacklist(String token) {      // Appele au logout
+        blacklistedTokens.add(token);
+    }
+
+    public boolean isBlacklisted(String token) { // Appele par JwtFilter a chaque requete
+        return blacklistedTokens.contains(token);
+    }
+}
+```
+
+**Pourquoi `ConcurrentHashMap` ?** Plusieurs requetes (threads) peuvent acceder a la blacklist en meme temps. `ConcurrentHashMap` est thread-safe.
+
+**Limitation :** La blacklist est en memoire → perdue au redemarrage. En production on utiliserait Redis. Mais pour le TP c'est suffisant car les tokens expirent en 15 min.
+
 ---
 
 # 10. Couche Controller
@@ -550,7 +583,7 @@ Les controllers recoivent les requetes HTTP et retournent des reponses JSON.
 
 ## 10.1 AuthController.java
 
-4 endpoints dans `/api/auth/` :
+5 endpoints dans `/api/auth/` :
 
 ### POST /api/auth/register — Inscription
 
@@ -576,6 +609,30 @@ Sortie : 200 OK { token: "eyJhbGci...", type: "Bearer" }
 
 Utilise `AuthenticationManager` de Spring Security pour verifier le username/password.
 Si valide, genere un JWT avec `JwtUtils.generateToken(username)`.
+
+**Securite** : en cas d'echec (username inexistant OU mauvais password), le message est toujours `401 "Invalid credentials"`. On ne dit JAMAIS "user not found" ou "wrong password" separement pour empecher l'enumeration de comptes.
+
+### POST /api/auth/logout — Deconnexion
+
+```
+Entree : Header "Authorization: Bearer <jwt>"
+Sortie : 200 OK { message: "Deconnexion reussie. Le token a ete invalide." }
+```
+
+**Probleme :** Avec JWT stateless, le serveur ne stocke pas de session. Le token reste valide jusqu'a son expiration (15 min). Donc apres un logout, un attaquant qui a vole le token pourrait encore l'utiliser.
+
+**Solution :** On utilise une **blacklist en memoire** (`TokenBlacklistService`). Au logout :
+1. Le JWT est ajoute a un `Set<String>` thread-safe (`ConcurrentHashMap.newKeySet()`)
+2. Le `JwtFilter` verifie si le token est dans la blacklist **avant** de l'accepter
+3. Si blackliste → le token est rejete (pas d'authentification)
+
+```
+AVANT le logout :
+  Token valide → JwtFilter accepte → requete autorisee
+
+APRES le logout :
+  Token dans la blacklist → JwtFilter rejette → 401 Unauthorized
+```
 
 ### GET /api/auth/verify?tokenId=...&t=... — Verification e-mail
 
@@ -792,6 +849,7 @@ Nginx sert de **point d'entree unique** sur le port 80. Les avantages :
 1. **Securite** : Nginx valide le JWT **avant** de transmettre au backend
 2. **Routage** : Un seul point d'entree pour tous les services
 3. **Decouplage** : Le client ne connait pas l'adresse reelle du backend
+4. **Load Balancing** : Nginx repartit les requetes entre plusieurs instances du backend
 
 ## Comment fonctionne `auth_request` ?
 
@@ -803,12 +861,13 @@ Nginx recoit la requete
     |
     |--> SUBREQUEST interne vers /_validate_jwt
     |       |
-    |       |--> proxy_pass vers http://backend:8080/api/auth/validate
+    |       |--> proxy_pass vers http://spring_backend/api/auth/validate
     |       |--> transmet le header Authorization (le JWT)
     |       |
     |       |<-- Spring Boot repond 200 (JWT valide) ou 401 (invalide)
     |
-    |--> Si 200 : proxy_pass vers http://backend:8080/api/users (la vraie requete)
+    |--> Si 200 : proxy_pass vers http://spring_backend/api/users
+    |             → Nginx choisit une instance backend (round-robin)
     |--> Si 401 : retourne {"error": "Unauthorized"} au client
 ```
 
@@ -822,19 +881,248 @@ Nginx recoit la requete
 | `/` | Publique | Non |
 | `/api/users/*` | Protegee | Oui (JWT valide par auth_request) |
 
-## Configuration upstream
+## Configuration upstream (load balanced)
 
 ```nginx
 upstream spring_backend {
-    server backend:8080;   # "backend" = nom du service dans docker-compose.yml
+    # Round-robin par defaut : chaque requete va a l'instance suivante
+    server backend:8080;
+    # Docker DNS resout "backend" vers TOUTES les IP des 3 instances
 }
 ```
 
-Docker resout automatiquement le nom `backend` vers l'IP du container.
+## Haute disponibilite (proxy_next_upstream)
+
+```nginx
+proxy_next_upstream error timeout http_502 http_503 http_504;
+proxy_next_upstream_tries 3;
+proxy_next_upstream_timeout 10s;
+```
+
+Si une instance backend tombe ou retourne une erreur 502/503/504, Nginx **reessaye automatiquement** sur une autre instance. L'utilisateur ne voit jamais l'erreur tant qu'il reste au moins 1 instance en vie.
+
+## Header de tracabilite
+
+```nginx
+add_header X-Upstream-Address $upstream_addr always;
+```
+
+Chaque reponse contient un header `X-Upstream-Address` qui indique l'IP de l'instance backend qui a traite la requete. Utile pour **demontrer visuellement** que le load balancing fonctionne.
 
 ---
 
-# 15. Conteneurisation : Docker
+# 15. Load Balancing : repartition de charge
+
+## Qu'est-ce que le Load Balancing ?
+
+Le load balancing (repartition de charge) consiste a **distribuer les requetes** entrantes entre **plusieurs instances** du meme service. Au lieu d'avoir 1 seul backend qui traite tout, on en a 3 qui se partagent le travail.
+
+```
+SANS Load Balancing :                   AVEC Load Balancing :
+
+Client → Nginx → 1 seul backend        Client → Nginx → Backend 1 (requete 1)
+                                                      → Backend 2 (requete 2)
+                                                      → Backend 3 (requete 3)
+                                                      → Backend 1 (requete 4)  ← retour au debut
+```
+
+## Pourquoi c'est important ?
+
+| Avantage | Explication |
+|----------|-------------|
+| **Performance** | 3 instances traitent 3x plus de requetes par seconde qu'une seule |
+| **Haute disponibilite** | Si 1 instance tombe, les 2 autres continuent a repondre |
+| **Scalabilite horizontale** | On peut ajouter/retirer des instances sans arreter le service |
+| **Zero downtime** | Pendant un deploiement, on met a jour les instances une par une |
+
+## Comment c'est implemente dans le projet ?
+
+### 1. docker-compose.yml — Lancer 3 instances
+
+```yaml
+backend:
+    build: .
+    # PAS de container_name → permet plusieurs instances
+    # PAS de ports: "8080:8080" → evite les conflits de port
+    expose:
+      - "8080"           # Port visible UNIQUEMENT dans le reseau Docker
+    deploy:
+      replicas: 3        # Lance 3 instances du backend
+```
+
+**Points importants :**
+- `container_name` est supprime : Docker genere des noms uniques (`project-backend-1`, `project-backend-2`, `project-backend-3`)
+- `ports: "8080:8080"` est remplace par `expose: "8080"` : le port n'est plus accessible depuis l'hote, seul Nginx y accede via le reseau Docker interne
+- `deploy.replicas: 3` : Docker Compose lance 3 containers identiques
+
+### 2. Docker DNS — Decouverte automatique
+
+Docker Compose a un **DNS interne** (127.0.0.11). Quand Nginx demande l'adresse de `backend`, Docker DNS retourne **toutes les IP** des 3 instances :
+
+```
+Nginx demande : "Quelle est l'IP de backend ?"
+Docker DNS repond :
+  - 172.18.0.5 (instance 1)
+  - 172.18.0.6 (instance 2)
+  - 172.18.0.7 (instance 3)
+```
+
+Nginx distribue alors les requetes entre ces 3 adresses.
+
+### 3. nginx.conf — Strategie round-robin
+
+```nginx
+upstream spring_backend {
+    server backend:8080;   # Docker DNS resout vers les 3 instances
+}
+```
+
+**Round-robin** (par defaut) : chaque nouvelle requete est envoyee a l'instance suivante, en boucle.
+
+```
+Requete 1 → Instance 1 (172.18.0.5)
+Requete 2 → Instance 2 (172.18.0.6)
+Requete 3 → Instance 3 (172.18.0.7)
+Requete 4 → Instance 1 (172.18.0.5)  ← retour au debut
+Requete 5 → Instance 2 (172.18.0.6)
+...
+```
+
+### 4. Strategies de load balancing disponibles
+
+| Strategie | Directive Nginx | Comportement |
+|-----------|----------------|--------------|
+| **Round-robin** (defaut) | aucune | Chaque requete va a l'instance suivante, en boucle |
+| **Least connections** | `least_conn;` | Envoie vers l'instance qui a le moins de connexions actives |
+| **IP Hash** | `ip_hash;` | Un meme client va toujours vers la meme instance (sticky sessions) |
+| **Random** | `random;` | Choix aleatoire |
+
+Nous utilisons **round-robin** car c'est le plus simple et le plus adapte a une API stateless (sans session serveur — tout est dans le JWT).
+
+### 5. Haute disponibilite — Failover automatique
+
+```nginx
+proxy_next_upstream error timeout http_502 http_503 http_504;
+proxy_next_upstream_tries 3;
+proxy_next_upstream_timeout 10s;
+```
+
+**Scenario : une instance tombe**
+
+```
+1. Client envoie une requete → Nginx choisit Instance 2
+2. Instance 2 est en panne → Nginx recoit une erreur 502
+3. Nginx REESSAYE automatiquement sur Instance 3
+4. Instance 3 repond → le client recoit sa reponse normalement
+5. Le client n'a RIEN vu de la panne !
+```
+
+### 6. Header de tracabilite
+
+```nginx
+add_header X-Upstream-Address $upstream_addr always;
+```
+
+Chaque reponse HTTP contient un header `X-Upstream-Address` qui indique l'adresse IP du backend qui a traite la requete. C'est ainsi qu'on **demontre** que le load balancing fonctionne.
+
+## Comment tester le Load Balancing ?
+
+### Test 1 : Voir la distribution des requetes
+
+Envoyer 6 requetes et observer le header `X-Upstream-Address` :
+
+```bash
+# Envoyer 6 requetes via Nginx (port 80)
+for i in 1 2 3 4 5 6; do
+  echo "Requete $i :"
+  curl -s -I http://localhost/ | grep X-Upstream
+done
+```
+
+Resultat attendu (les IP changent a chaque requete = round-robin) :
+
+```
+Requete 1 : X-Upstream-Address: 172.18.0.5:8080
+Requete 2 : X-Upstream-Address: 172.18.0.6:8080
+Requete 3 : X-Upstream-Address: 172.18.0.7:8080
+Requete 4 : X-Upstream-Address: 172.18.0.5:8080
+Requete 5 : X-Upstream-Address: 172.18.0.6:8080
+Requete 6 : X-Upstream-Address: 172.18.0.7:8080
+```
+
+### Test 2 : Tester la haute disponibilite (failover)
+
+```bash
+# 1. Voir les instances qui tournent
+docker-compose ps
+
+# 2. Arreter une instance (simuler une panne)
+docker stop project-backend-2
+
+# 3. Envoyer des requetes → elles passent toujours (les 2 autres repondent)
+curl http://localhost/
+
+# 4. Relancer l'instance
+docker start project-backend-2
+```
+
+### Test 3 : Changer le nombre d'instances a chaud
+
+```bash
+# Passer de 3 a 5 instances (sans redemarrer quoi que ce soit)
+docker-compose up -d --scale backend=5
+
+# Verifier
+docker-compose ps    # → 5 instances backend
+
+# Reduire a 2 instances
+docker-compose up -d --scale backend=2
+```
+
+## Schema complet du Load Balancing
+
+```
+                        [Nginx - Port 80]
+                     Load Balancer (round-robin)
+                    /          |           \
+                   /           |            \
+                  v            v             v
+        [Backend 1]    [Backend 2]    [Backend 3]
+        172.18.0.5     172.18.0.6     172.18.0.7
+        port 8080      port 8080      port 8080
+                  \           |            /
+                   \          |           /
+                    v         v          v
+              [PostgreSQL]  [RabbitMQ]  [MailHog]
+              (partages par toutes les instances)
+```
+
+**Toutes les instances partagent** la meme base PostgreSQL, le meme RabbitMQ et le meme MailHog.
+C'est possible car l'application est **stateless** (pas de donnees en memoire — tout est dans la BDD ou le JWT).
+
+---
+
+# 16. Conteneurisation : Docker
+
+## Pourquoi avoir mis le backend dans Docker Compose ?
+
+On aurait pu lancer le backend en local (via IntelliJ) et mettre seulement l'infrastructure (PostgreSQL, RabbitMQ, MailHog) dans Docker. On a choisi de tout mettre dans Docker pour **5 raisons** :
+
+| Raison | Explication |
+|--------|-------------|
+| **1. Une seule commande** | `docker-compose up -d --build` lance tout. Personne n'a besoin d'installer Java ou Maven. |
+| **2. Load Balancing** | Sans Docker, il faudrait lancer manuellement 3 Spring Boot sur des ports differents (8080, 8081, 8082) et les configurer un par un dans Nginx. Avec Docker, `deploy.replicas: 3` fait tout automatiquement. |
+| **3. Environnement identique** | Le professeur, un collegue ou un serveur de production utilisent exactement la meme configuration. Pas de "ca marche sur ma machine". |
+| **4. Reseau interne** | Le backend communique avec PostgreSQL, RabbitMQ et MailHog via les noms de service Docker (`postgres`, `rabbitmq`, `mailhog`) sans exposer les ports sur la machine hote. C'est plus securise. |
+| **5. Profils Spring Boot** | Le profil `application-docker.properties` montre la maitrise de la configuration par environnement (dev local vs Docker), un concept important en architecture logicielle. |
+
+**Et pour le developpement actif ?** On peut toujours lancer le backend en local avec IntelliJ et mettre seulement l'infrastructure dans Docker :
+
+```bash
+# Methode developpement : seulement l'infra dans Docker
+docker-compose up -d postgres rabbitmq mailhog
+# Puis lancer Spring Boot depuis IntelliJ (utilise application.properties avec localhost)
+```
 
 ## Dockerfile — Comment construire l'image du backend
 
@@ -854,18 +1142,18 @@ ETAPE 2 (run) — Image JRE (legere, ~200 MB)
 
 **Avantage du multi-stage :** L'image finale ne contient que le JAR et Java (pas Maven, pas le code source).
 
-## docker-compose.yml — Orchestration des 5 services
+## docker-compose.yml — Orchestration des 7 containers (5 services)
 
 ```
                    depends_on
-postgres ◄──────────── backend ──────────► rabbitmq
-(healthcheck)         (port 8080)        (healthcheck)
+postgres ◄──────────── backend x3 ──────────► rabbitmq
+(healthcheck)      (load balanced)           (healthcheck)
                         |
                         ▼
                       mailhog
                         |
                         ▼
-                      nginx ──────────► backend
+                      nginx ──────────► backend x3 (round-robin)
                     (port 80)
 ```
 
@@ -873,10 +1161,12 @@ postgres ◄──────────── backend ───────�
 1. PostgreSQL demarre et attend d'etre "healthy" (healthcheck: `pg_isready`)
 2. RabbitMQ demarre et attend d'etre "healthy" (healthcheck: `rabbitmq-diagnostics`)
 3. MailHog demarre
-4. **Backend** attend que PostgreSQL ET RabbitMQ soient healthy, puis demarre
+4. **3 instances du Backend** attendent que PostgreSQL ET RabbitMQ soient healthy, puis demarrent
 5. **Nginx** attend que le backend soit lance, puis demarre
 
 **`depends_on` avec `condition: service_healthy`** garantit que le backend ne demarre pas avant que la base de donnees et RabbitMQ soient prets.
+
+**`deploy.replicas: 3`** lance 3 instances identiques du backend pour le load balancing.
 
 ## .dockerignore
 
@@ -899,7 +1189,7 @@ Quand Spring Boot tourne dans Docker, il utilise les **noms de service** au lieu
 
 ---
 
-# 16. Documentation API : Swagger / OpenAPI
+# 17. Documentation API : Swagger / OpenAPI
 
 ## OpenApiConfig.java
 
@@ -910,8 +1200,7 @@ Configure l'interface Swagger avec :
 
 ## Comment acceder a Swagger ?
 
-- **Directement** : http://localhost:8080/swagger-ui.html
-- **Via Nginx** : http://localhost/swagger-ui.html
+- **Via Nginx (recommande)** : http://localhost/swagger-ui.html
 
 ## Annotations utilisees dans les controllers
 
@@ -924,7 +1213,7 @@ Configure l'interface Swagger avec :
 
 ---
 
-# 17. Comment lancer le projet
+# 18. Comment lancer le projet
 
 ## Prerequis
 
@@ -961,21 +1250,24 @@ docker-compose up -d postgres rabbitmq mailhog
 
 ---
 
-# 18. Comment tester le projet
+# 19. Comment tester le projet
 
 ## URLs des interfaces web
 
 | Service | URL | Login |
 |---------|-----|-------|
-| Swagger (API docs) | http://localhost:8080/swagger-ui.html | — |
+| Swagger (API docs) | http://localhost/swagger-ui.html | — |
 | MailHog (e-mails) | http://localhost:8025 | — |
 | RabbitMQ (messagerie) | http://localhost:15672 | guest / guest |
-| Nginx (proxy) | http://localhost | — |
+| Nginx (proxy + LB) | http://localhost | — |
+
+> **Note :** Le backend n'est plus accessible directement sur le port 8080 (il est interne a Docker).
+> Toutes les requetes passent par Nginx sur le port 80.
 
 ## Test 1 : Inscription
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"alice","email":"alice@example.com","password":"pass123"}'
 ```
@@ -994,7 +1286,7 @@ Reponse attendue : `200 OK` avec `verified: true`
 ## Test 3 : Connexion
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"alice","password":"pass123"}'
 ```
@@ -1026,11 +1318,36 @@ docker-compose stop mailhog            # Arreter MailHog
 docker-compose start mailhog            # Relancer MailHog
 ```
 
+## Test 7 : Verifier le Load Balancing
+
+```bash
+# Envoyer 6 requetes et observer le header X-Upstream-Address
+# (Windows PowerShell)
+1..6 | ForEach-Object {
+  $r = Invoke-WebRequest -Uri http://localhost/ -UseBasicParsing
+  "Requete $_ : $($r.Headers['X-Upstream-Address'])"
+}
+```
+
+Resultat attendu : les adresses IP changent en round-robin entre 3 instances differentes.
+
+```bash
+# Tester le failover : arreter une instance et verifier que ca fonctionne toujours
+docker-compose ps                          # Voir les 3 instances
+docker stop project-backend-2             # Simuler une panne
+curl http://localhost/                     # → ca repond toujours !
+docker start project-backend-2            # Relancer l'instance
+
+# Scaler dynamiquement
+docker-compose up -d --scale backend=5     # Passer a 5 instances
+docker-compose up -d --scale backend=2     # Reduire a 2 instances
+```
+
 ---
 
-# 19. Resume pour le pitch
+# 20. Resume pour le pitch
 
-## Les 6 points cles a expliquer
+## Les 7 points cles a expliquer
 
 1. **"On ne stocke JAMAIS le token en clair en base."**
    → Meme principe que les mots de passe : on stocke le hash BCrypt. Si la base fuit, les tokens sont inutilisables.
@@ -1047,8 +1364,11 @@ docker-compose start mailhog            # Relancer MailHog
 5. **"Nginx valide le JWT avant de transmettre au backend."**
    → Le backend ne recoit que des requetes deja authentifiees. C'est la separation des responsabilites (API Gateway pattern).
 
-6. **"Tout tourne dans Docker avec une seule commande."**
-   → `docker-compose up -d --build` lance PostgreSQL, RabbitMQ, MailHog, le backend Spring Boot et Nginx. Rien a installer manuellement.
+6. **"Nginx repartit les requetes entre 3 instances du backend."**
+   → C'est le load balancing round-robin. Si une instance tombe, Nginx reessaye automatiquement sur une autre (failover). On peut scaler de 1 a N instances avec une seule commande (`docker-compose up -d --scale backend=5`). Le header `X-Upstream-Address` prouve visuellement la distribution.
+
+7. **"Tout tourne dans Docker avec une seule commande."**
+   → `docker-compose up -d --build` lance PostgreSQL, RabbitMQ, MailHog, 3 instances du backend et Nginx. Rien a installer manuellement.
 
 ## Resume des fichiers
 
@@ -1058,15 +1378,16 @@ docker-compose start mailhog            # Relancer MailHog
 | `Credentials.java` | 84 | Entite identifiants (email, phone, password hashee) |
 | `Role.java` | 49 | Entite role (ADMIN/USER avec enum) |
 | `VerificationToken.java` | 75 | Token de verification (tokenId, tokenHash, expiresAt) |
-| `AuthController.java` | 363 | 4 endpoints : register, login, verify, validate |
+| `AuthController.java` | 404 | 5 endpoints : register, login, logout, verify, validate |
 | `UserController.java` | 162 | CRUD utilisateurs (protege par role ADMIN) |
 | `NotificationListener.java` | 100 | Ecoute RabbitMQ et envoie les e-mails |
+| `TokenBlacklistService.java` | 65 | Blacklist JWT en memoire pour le logout |
 | `UserService.java` | 190 | Logique CRUD avec validations |
 | `RabbitMQConfig.java` | 156 | Exchange, queues, DLQ, binding, JSON converter |
 | `SecurityConfig.java` | 54 | BCrypt, JWT filter, session stateless |
 | `JwtUtils.java` | 258 | Generation et validation des tokens JWT |
 | `JwtFilter.java` | 65 | Intercepte chaque requete pour verifier le JWT |
-| `nginx.conf` | 141 | Reverse proxy avec auth_request pour valider JWT |
-| `docker-compose.yml` | 141 | 5 services : postgres, rabbitmq, mailhog, backend, nginx |
+| `nginx.conf` | 160+ | Reverse proxy + load balancer (round-robin) + auth_request JWT + failover |
+| `docker-compose.yml` | 150+ | 5 services, 7 containers (backend x3), healthchecks, load balancing |
 | `Dockerfile` | 46 | Multi-stage build du backend |
 | `application.properties` | 54 | Configuration complete (BDD, JWT, RabbitMQ, Mail) |
