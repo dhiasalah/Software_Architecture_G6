@@ -9,7 +9,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,13 +29,17 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("User credentials not found for: " + username);
         }
 
-        String roleName = "ROLE_" + user.getRole().getName().name();
-        System.out.println("=== Loading user: " + username + " with authority: " + roleName + " ===");
+        // Charger toutes les PERMISSIONS du rôle de l'utilisateur comme authorities
+        List<SimpleGrantedAuthority> authorities = user.getRole().getPermissions().stream()
+                .map(permission -> new SimpleGrantedAuthority(permission.getName().name()))
+                .collect(Collectors.toList());
+
+        System.out.println("=== Loading user: " + username + " with authorities: " + authorities + " ===");
 
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getCredentials().getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority(roleName))
+                authorities
         );
     }
 }

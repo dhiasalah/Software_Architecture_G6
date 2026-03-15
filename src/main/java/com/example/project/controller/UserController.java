@@ -47,7 +47,7 @@ public class UserController {
      * Sécurité : Uniquement les ADMIN peuvent accéder
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_READ')")
     @Operation(summary = "Récupérer tous les utilisateurs",
                description = "Retourne la liste de tous les utilisateurs (les mots de passe sont masqués)")
     @ApiResponse(responseCode = "200", description = "Liste récupérée avec succès")
@@ -66,7 +66,7 @@ public class UserController {
      * Sécurité : Uniquement les ADMIN peuvent accéder
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_READ')")
     @Operation(summary = "Récupérer un utilisateur par ID",
                description = "Retourne un utilisateur spécifique par son ID")
     @ApiResponse(responseCode = "200", description = "Utilisateur trouvé")
@@ -96,7 +96,7 @@ public class UserController {
      * Sécurité : Uniquement les ADMIN peuvent créer des utilisateurs
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_CREATE')")
     @Operation(summary = "Créer un nouvel utilisateur",
                description = "Crée un nouvel utilisateur avec les informations fournies")
     @ApiResponse(responseCode = "201", description = "Utilisateur créé avec succès")
@@ -127,7 +127,7 @@ public class UserController {
      * Sécurité : Uniquement les ADMIN peuvent modifier des utilisateurs
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_UPDATE')")
     @Operation(summary = "Modifier un utilisateur",
                description = "Met à jour les informations d'un utilisateur existant")
     @ApiResponse(responseCode = "200", description = "Utilisateur modifié avec succès")
@@ -149,7 +149,7 @@ public class UserController {
      * Sécurité : Uniquement les ADMIN peuvent supprimer des utilisateurs
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_DELETE')")
     @Operation(summary = "Supprimer un utilisateur",
                description = "Supprime un utilisateur de la base de données")
     @ApiResponse(responseCode = "204", description = "Utilisateur supprimé avec succès")
