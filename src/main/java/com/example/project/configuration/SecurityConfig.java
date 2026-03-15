@@ -2,6 +2,7 @@ package com.example.project.configuration;
 
 import com.example.project.filter.JwtFilter;
 import com.example.project.service.CustomUserDetailsService;
+import com.example.project.service.TokenBlacklistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtUtils jwtUtils;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -46,7 +48,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .anyRequest().permitAll()
                 )
-                .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtFilter(customUserDetailsService, jwtUtils, tokenBlacklistService), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

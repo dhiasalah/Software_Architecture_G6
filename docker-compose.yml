@@ -1,0 +1,152 @@
+# ==============================================================================
+# DOCKER COMPOSE - Tous les services du TP
+# ==============================================================================
+#
+# Ce fichier lance TOUS les services nécessaires :
+#
+# 1. POSTGRES (base de données)
+#    - Port 5432 : port PostgreSQL
+#    - Les données sont persistées dans un volume Docker
+#
+# 2. RABBITMQ (messagerie)
+#    - Port 5672 : port AMQP (Spring Boot envoie/reçoit des messages)
+#    - Port 15672 : panneau d'administration web → http://localhost:15672
+#      Login : guest / guest
+#
+# 3. MAILHOG (serveur SMTP de test)
+#    - Port 1025 : port SMTP (Spring Boot envoie des e-mails)
+#    - Port 8025 : boîte de réception web → http://localhost:8025
+#
+# 4. BACKEND (Spring Boot) x3 instances
+#    - Port interne 8080 (non expose sur l'hote)
+#    - 3 replicas par defaut (load balancing via Nginx)
+#    - Utilise le profil "docker" (application-docker.properties)
+#
+# 5. NGINX (API Gateway / Reverse Proxy + Load Balancer)
+#    - Port 80 : point d'entrée unique pour le client
+#    - Repartit les requetes entre les 3 instances backend (round-robin)
+#
+# COMMENT UTILISER :
+#   Tout démarrer :  docker-compose up -d --build
+#   Tout arrêter  :  docker-compose down
+#   Voir les logs :  docker-compose logs -f
+#   Logs backend  :  docker-compose logs -f backend
+#   Scaler le backend : docker-compose up -d --scale backend=5
+#
+# PRÉREQUIS : Docker et Docker Compose installés
+# ==============================================================================
+
+services:
+
+  # ============================================
+  # POSTGRES - Base de données
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    # postgres:16-alpine = image officielle PostgreSQL (version légère)
+    container_name: postgres
+    ports:
+      - "5432:5432"    # Port PostgreSQL (accessible aussi depuis la machine hôte)
+    environment:
+      POSTGRES_DB: project_spring       # Nom de la base de données (créée automatiquement)
+      POSTGRES_USER: postgres           # Utilisateur par défaut
+      POSTGRES_PASSWORD: dhia           # Mot de passe (même que dans application.properties)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persiste les données entre redémarrages
+    healthcheck:
+      # Vérifie que PostgreSQL est prêt à accepter des connexions
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # RABBITMQ - Serveur de messagerie
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3-management
+    # rabbitmq:3-management = image officielle avec le panneau web inclus
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"    # Port AMQP (Spring Boot se connecte ici)
+      - "15672:15672"  # Port Web UI (panneau d'administration)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest      # Utilisateur par défaut
+      RABBITMQ_DEFAULT_PASS: guest      # Mot de passe par défaut
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MAILHOG - Serveur SMTP de développement
+  # ============================================
+  mailhog:
+    image: mailhog/mailhog
+    # mailhog/mailhog = serveur SMTP qui capture les e-mails (ne les envoie pas vraiment)
+    container_name: mailhog
+    ports:
+      - "1025:1025"  # Port SMTP (Spring Boot envoie les e-mails ici)
+      - "8025:8025"  # Port Web UI (boîte de réception)
+
+  # ============================================
+  # BACKEND - Spring Boot Application (avec Load Balancing)
+  # ============================================
+  # Le backend est compilé et lancé dans un container Docker.
+  # Il utilise le profil "docker" qui remplace localhost par les noms
+  # de service Docker (postgres, rabbitmq, mailhog).
+  #
+  # LOAD BALANCING :
+  #   - deploy.replicas: 3 → lance 3 instances du backend
+  #   - Pas de container_name (sinon on ne peut pas avoir plusieurs instances)
+  #   - Pas de port fixe 8080:8080 (sinon conflit entre instances)
+  #   - Nginx repartit les requetes entre les 3 instances automatiquement
+  #   - Pour changer le nombre d'instances : docker-compose up -d --scale backend=5
+  backend:
+    build:
+      context: .           # Le Dockerfile est à la racine du projet
+      dockerfile: Dockerfile
+    # PAS de container_name ici → permet de lancer plusieurs instances
+    # PAS de ports: "8080:8080" → seul Nginx expose le port 80, les backends
+    #   sont accessibles uniquement via le reseau Docker interne
+    expose:
+      - "8080"             # Port visible uniquement dans le reseau Docker (pas sur l'hote)
+    depends_on:
+      postgres:
+        condition: service_healthy    # Attend que PostgreSQL soit prêt
+      rabbitmq:
+        condition: service_healthy    # Attend que RabbitMQ soit prêt
+      mailhog:
+        condition: service_started    # Attend que MailHog ait démarré
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    restart: on-failure
+    deploy:
+      replicas: 3          # Lance 3 instances du backend pour le load balancing
+
+  # ============================================
+  # NGINX - API Gateway / Reverse Proxy
+  # ============================================
+  # Nginx est le point d'entrée unique de l'application.
+  # Il valide le JWT via auth_request avant de transmettre au backend.
+  #
+  # Le client appelle Nginx sur le port 80 au lieu de Spring Boot sur 8080.
+  # Routes publiques (/api/auth/*, /swagger-ui) → passent directement
+  # Routes protégées (/api/users/*) → Nginx vérifie le JWT d'abord
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "80:80"  # Le client se connecte ici (http://localhost)
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro  # Monte notre config
+    depends_on:
+      - backend  # Attend que le backend soit lancé
+
+# Volumes nommés pour persister les données
+volumes:
+  postgres_data:
+  rabbitmq_data:

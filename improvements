@@ -1,0 +1,3 @@
+plusieur moyens d'authentification donc pas oneToOne
+on doit stocker les tokens d'authentification dans la table user
+api pour verifier les tokens d'authentification
