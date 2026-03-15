@@ -23,7 +23,7 @@ Ce projet est une **API REST Spring Boot** qui implémente un système d'**authe
 - ✅ **Inscription d'utilisateurs** (Register)
 - ✅ **Connexion** (Login) avec génération de **token JWT**
 - ✅ **Gestion CRUD des utilisateurs** (Create, Read, Update, Delete)
-- ✅ **Sécurité basée sur les rôles** (ADMIN, USER)
+- ✅ **Sécurité granulaire basée sur les permissions** (USER_READ, USER_CREATE, etc.) associées aux rôles (ADMIN, USER)
 - ✅ **Documentation API automatique** avec Swagger/OpenAPI
 
 ### 🔑 Concept clé : JWT (JSON Web Token)
@@ -149,20 +149,25 @@ src/main/java/com/example/project/
 └─────────────────────────────────────────────────────────────────────────────┘
 
    ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐
-   │      ROLE        │         │       USER       │         │   CREDENTIALS    │
+   │    PERMISSION    │         │       USER       │         │   CREDENTIALS    │
    ├──────────────────┤         ├──────────────────┤         ├──────────────────┤
-   │ id (PK)          │◄───┐    │ id (PK)          │◄───┐    │ id (PK)          │
-   │ name (RoleType)  │    │    │ username         │    │    │ email            │
-   │ description      │    │    │ role_id (FK)─────┤────┘    │ phoneNumber      │
-   └──────────────────┘    │    │                  │         │ password         │
-                           │    └──────────────────┘         │ user_id (FK)─────┤────┐
-                           │            ▲                    └──────────────────┘    │
-                           │            │                             │              │
-                           │            └─────────────────────────────┘              │
-                           │                    1:1 (One-to-One)                     │
-                           │                                                         │
-                           └─────────────────────────────────────────────────────────┘
-                                           N:1 (Many-to-One)
+   │ id (PK)          │◀──┐     │ id (PK)          │◀───┐    │ id (PK)          │
+   │ name (Enum)      │   │     │ username         │    │    │ email            │
+   │ description      │   │     │ role_id (FK)─────┤────┘    │ phoneNumber      │
+   └──────────────────┘   │     │                  │         │ password         │
+            ▲             │     └──────────────────┘         │ user_id (FK)─────┤────┐
+            │             │             ▲                    └──────────────────┘    │
+           N:M            │             │                             │              │
+       (Many-to-Many)     │             └─────────────────────────────┘              │
+            ▼             │                     1:1 (One-to-One)                     │
+   ┌──────────────────┐   │                                                          │
+   │      ROLE        │   │                                                          │
+   ├──────────────────┤   │                                                          │
+   │ id (PK)          │───┘                                                          │
+   │ name (RoleType)  │                                                              │
+   │ description      │                                                              │
+   └──────────────────┘                                                              │
+                                            N:1 (Many-to-One)
 
 
    ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -245,6 +250,19 @@ public enum RoleType {
 | id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | Identifiant unique |
 | name | VARCHAR | UNIQUE, NOT NULL | Type de rôle (ADMIN/USER) |
 | description | VARCHAR(500) | - | Description du rôle |
+
+#### Table `permissions` (Nouveau)
+| Colonne | Type | Contraintes | Description |
+|---------|------|-------------|-------------|
+| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | Identifiant unique |
+| name | VARCHAR | UNIQUE, NOT NULL | Nom de la permission (ex: USER_READ) |
+| description | VARCHAR(500) | - | Description de l'action autorisée |
+
+#### Table `role_permissions` (Table de jointure N:M)
+| Colonne | Type | Contraintes | Description |
+|---------|------|-------------|-------------|
+| role_id | BIGINT | FOREIGN KEY → roles(id) | Référence au rôle |
+| permission_id | BIGINT | FOREIGN KEY → permissions(id) | Référence à la permission |
 
 #### Table `credentials`
 | Colonne | Type | Contraintes | Description |
@@ -348,13 +366,13 @@ Configure :
 
 **Base URL** : `/api/users`
 
-| Endpoint | Méthode | Accès | Description |
+| Endpoint | Méthode | Accès (Permission requise) | Description |
 |----------|---------|-------|-------------|
-| `/` | GET | ADMIN | Liste tous les utilisateurs |
-| `/{id}` | GET | ADMIN | Récupère un utilisateur par ID |
-| `/` | POST | ADMIN | Crée un nouvel utilisateur |
-| `/{id}` | PUT | ADMIN | Modifie un utilisateur |
-| `/{id}` | DELETE | ADMIN | Supprime un utilisateur |
+| `/` | GET | `USER_READ` | Liste tous les utilisateurs |
+| `/{id}` | GET | `USER_READ` | Récupère un utilisateur par ID |
+| `/` | POST | `USER_CREATE` | Crée un nouvel utilisateur |
+| `/{id}` | PUT | `USER_UPDATE` | Modifie un utilisateur |
+| `/{id}` | DELETE | `USER_DELETE` | Supprime un utilisateur |
 
 ### HomeController.java
 
@@ -498,7 +516,8 @@ Credentials findByPhoneNumber(String phoneNumber);
                                                       ▼
                                           ┌───────────────┐
                                           │@PreAuthorize  │
-                                          │hasRole('ADMIN')│
+                                          │hasAuthority(  │
+                                          │  'USER_READ') │
                                           └───────┬───────┘
                                                   │
                                                   ▼
