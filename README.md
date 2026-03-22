@@ -1,706 +1,272 @@
-# 📚 Documentation du Projet Spring Boot - Système d'Authentification
+# Spring Boot Authentication API
 
-## 📋 Table des Matières
-1. [Vue d'ensemble du projet](#vue-densemble-du-projet)
-2. [Technologies utilisées](#technologies-utilisées)
-3. [Architecture du projet](#architecture-du-projet)
-4. [Structure des fichiers](#structure-des-fichiers)
-5. [Les Entités et leurs Relations](#les-entités-et-leurs-relations)
-6. [Couche Configuration](#couche-configuration)
-7. [Couche Controller](#couche-controller)
-8. [Couche Service](#couche-service)
-9. [Couche Repository](#couche-repository)
-10. [Flux d'authentification](#flux-dauthentification)
-11. [API Endpoints](#api-endpoints)
-12. [Comment utiliser l'application](#comment-utiliser-lapplication)
+REST API with JWT authentication, permission-based authorization, email verification, and full Docker deployment with Nginx load balancing.
+
+## Table of Contents
+
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Option 1: Docker Compose (Recommended)](#option-1-docker-compose-recommended)
+  - [Option 2: Run Locally](#option-2-run-locally)
+- [API Endpoints](#api-endpoints)
+- [Using Swagger UI](#using-swagger-ui)
+- [Architecture](#architecture)
 
 ---
 
-## 🎯 Vue d'ensemble du projet
+## Tech Stack
 
-Ce projet est une **API REST Spring Boot** qui implémente un système d'**authentification et de gestion des utilisateurs** avec les fonctionnalités suivantes :
-
-- ✅ **Inscription d'utilisateurs** (Register)
-- ✅ **Connexion** (Login) avec génération de **token JWT**
-- ✅ **Gestion CRUD des utilisateurs** (Create, Read, Update, Delete)
-- ✅ **Sécurité granulaire basée sur les permissions** (USER_READ, USER_CREATE, etc.) associées aux rôles (ADMIN, USER)
-- ✅ **Documentation API automatique** avec Swagger/OpenAPI
-
-### 🔑 Concept clé : JWT (JSON Web Token)
-
-Le projet utilise **JWT** pour l'authentification :
-1. L'utilisateur s'inscrit ou se connecte
-2. Le serveur génère un **token JWT**
-3. L'utilisateur envoie ce token dans chaque requête
-4. Le serveur vérifie le token et autorise ou refuse l'accès
+| Technology       | Version | Purpose                          |
+| ---------------- | ------- | -------------------------------- |
+| Java             | 17      | Language                         |
+| Spring Boot      | 4.0.2   | Backend framework                |
+| Spring Security  | -       | Authentication & authorization   |
+| PostgreSQL       | 16      | Database                         |
+| JWT (jjwt)       | 0.11.5  | Token-based authentication       |
+| RabbitMQ         | 3       | Async messaging (email events)   |
+| MailHog          | -       | Dev email capture                |
+| Nginx            | -       | API gateway & load balancer      |
+| SpringDoc OpenAPI| 2.3.0   | Swagger documentation            |
+| Docker Compose   | -       | Container orchestration          |
 
 ---
 
-## 🛠️ Technologies utilisées
+## Getting Started
 
-| Technologie | Version | Description |
-|------------|---------|-------------|
-| **Java** | 17 | Langage de programmation |
-| **Spring Boot** | 4.0.2 | Framework backend |
-| **Spring Security** | - | Sécurité et authentification |
-| **Spring Data JPA** | - | ORM pour la base de données |
-| **PostgreSQL** | - | Base de données relationnelle |
-| **JWT (jjwt)** | 0.11.5 | Gestion des tokens JWT |
-| **Lombok** | - | Réduction du code boilerplate |
-| **SpringDoc OpenAPI** | 2.3.0 | Documentation Swagger |
-| **Maven** | - | Gestionnaire de dépendances |
+### Prerequisites
+
+- **Docker & Docker Compose** (for Option 1)
+- **Java 17+** and **Maven** (for Option 2)
 
 ---
 
-## 🏗️ Architecture du projet
+### Option 1: Docker Compose (Recommended)
 
-Le projet suit une **architecture en couches** (Layered Architecture) :
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    🌐 CLIENT (Navigateur/Postman)           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   🔒 FILTRE JWT (JwtFilter)                 │
-│        Intercepte les requêtes et vérifie le token          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 🎮 CONTROLLERS (REST API)                   │
-│   AuthController │ UserController │ HomeController          │
-│   Reçoit les requêtes HTTP et retourne les réponses         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    🔧 SERVICES                              │
-│         UserService │ CustomUserDetailsService              │
-│         Contient la logique métier                          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  📦 REPOSITORIES                            │
-│   UserRepository │ RoleRepository │ CredentialsRepository   │
-│   Communication avec la base de données                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  🗄️ BASE DE DONNÉES (PostgreSQL)           │
-│            Tables: users, roles, credentials                │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Structure des fichiers
-
-```
-src/main/java/com/example/project/
-├── 📄 ProjectApplication.java          # Point d'entrée de l'application
-│
-├── 📁 configuration/                   # Configuration de l'application
-│   ├── SecurityConfig.java             # Configuration Spring Security
-│   ├── JwtUtils.java                   # Utilitaires pour JWT
-│   ├── OpenApiConfig.java              # Configuration Swagger
-│   └── DataInitializer.java            # Initialisation des données
-│
-├── 📁 controller/                      # Contrôleurs REST
-│   ├── AuthController.java             # Endpoints d'authentification
-│   ├── UserController.java             # CRUD utilisateurs
-│   └── HomeController.java             # Page d'accueil
-│
-├── 📁 dto/                             # Data Transfer Objects
-│   ├── LoginRequest.java               # Requête de connexion
-│   └── RegisterRequest.java            # Requête d'inscription
-│
-├── 📁 entity/                          # Entités JPA (tables BD)
-│   ├── User.java                       # Entité utilisateur
-│   ├── Role.java                       # Entité rôle
-│   ├── RoleType.java                   # Enum des types de rôles
-│   └── Credentials.java                # Entité identifiants
-│
-├── 📁 filter/                          # Filtres HTTP
-│   └── JwtFilter.java                  # Filtre de vérification JWT
-│
-├── 📁 repository/                      # Accès à la base de données
-│   ├── UserRepository.java             # Repository utilisateurs
-│   ├── RoleRepository.java             # Repository rôles
-│   └── CredentialsRepository.java      # Repository identifiants
-│
-└── 📁 service/                         # Logique métier
-    ├── UserService.java                # Service utilisateurs
-    └── CustomUserDetailsService.java   # Service Spring Security
-```
-
----
-
-## 🔗 Les Entités et leurs Relations
-
-### 📊 Diagramme des Relations (ERD)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           DIAGRAMME DE RELATIONS                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐
-   │    PERMISSION    │         │       USER       │         │   CREDENTIALS    │
-   ├──────────────────┤         ├──────────────────┤         ├──────────────────┤
-   │ id (PK)          │◀──┐     │ id (PK)          │◀───┐    │ id (PK)          │
-   │ name (Enum)      │   │     │ username         │    │    │ email            │
-   │ description      │   │     │ role_id (FK)─────┤────┘    │ phoneNumber      │
-   └──────────────────┘   │     │                  │         │ password         │
-            ▲             │     └──────────────────┘         │ user_id (FK)─────┤────┐
-            │             │             ▲                    └──────────────────┘    │
-           N:M            │             │                             │              │
-       (Many-to-Many)     │             └─────────────────────────────┘              │
-            ▼             │                     1:1 (One-to-One)                     │
-   ┌──────────────────┐   │                                                          │
-   │      ROLE        │   │                                                          │
-   ├──────────────────┤   │                                                          │
-   │ id (PK)          │───┘                                                          │
-   │ name (RoleType)  │                                                              │
-   │ description      │                                                              │
-   └──────────────────┘                                                              │
-                                            N:1 (Many-to-One)
-
-
-   ┌──────────────────────────────────────────────────────────────────────────────┐
-   │                              ENUM RoleType                                   │
-   ├──────────────────────────────────────────────────────────────────────────────┤
-   │  ADMIN ─── "Administrateur avec toutes les permissions"                      │
-   │  USER  ─── "Utilisateur standard avec permissions de base"                   │
-   └──────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 📝 Explication détaillée des Relations
-
-#### 1️⃣ Relation **User ↔ Role** (Many-to-One / N:1)
-
-```java
-// Dans User.java
-@ManyToOne(fetch = FetchType.EAGER)
-@JoinColumn(name = "role_id", nullable = false)
-private Role role;
-```
-
-| Aspect | Description |
-|--------|-------------|
-| **Type** | Many-to-One (Plusieurs utilisateurs vers un rôle) |
-| **Signification** | Plusieurs utilisateurs peuvent avoir le MÊME rôle |
-| **Exemple** | 100 utilisateurs peuvent avoir le rôle "USER" |
-| **Colonne** | `role_id` dans la table `users` |
-| **FetchType.EAGER** | Le rôle est chargé automatiquement avec l'utilisateur |
-
-#### 2️⃣ Relation **User ↔ Credentials** (One-to-One / 1:1)
-
-```java
-// Dans User.java
-@OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-private Credentials credentials;
-
-// Dans Credentials.java
-@OneToOne(fetch = FetchType.LAZY, optional = false)
-@JoinColumn(name = "user_id", nullable = false, unique = true)
-private User user;
-```
-
-| Aspect | Description |
-|--------|-------------|
-| **Type** | One-to-One (Un utilisateur, un ensemble d'identifiants) |
-| **Propriétaire** | `Credentials` possède la clé étrangère (`user_id`) |
-| **mappedBy** | La relation est gérée par le champ `user` dans Credentials |
-| **cascade = CascadeType.ALL** | Les opérations sur User se propagent à Credentials |
-| **orphanRemoval = true** | Si on détache les credentials, ils sont supprimés |
-
-#### 3️⃣ L'Enum **RoleType**
-
-```java
-public enum RoleType {
-    ADMIN("Administrateur avec toutes les permissions"),
-    USER("Utilisateur standard avec permissions de base");
-}
-```
-
-| Aspect | Description |
-|--------|-------------|
-| **Pourquoi un Enum ?** | Garantit que seules les valeurs ADMIN et USER sont possibles |
-| **Avantages** | Évite les erreurs de typo, auto-complétion, type-safe |
-| **Stockage** | Sauvegardé en tant que String en base ("ADMIN", "USER") |
-
----
-
-### 📊 Tables en Base de Données
-
-#### Table `users`
-| Colonne | Type | Contraintes | Description |
-|---------|------|-------------|-------------|
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | Identifiant unique |
-| username | VARCHAR | UNIQUE, NOT NULL | Nom d'utilisateur |
-| role_id | BIGINT | FOREIGN KEY → roles(id), NOT NULL | Référence au rôle |
-
-#### Table `roles`
-| Colonne | Type | Contraintes | Description |
-|---------|------|-------------|-------------|
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | Identifiant unique |
-| name | VARCHAR | UNIQUE, NOT NULL | Type de rôle (ADMIN/USER) |
-| description | VARCHAR(500) | - | Description du rôle |
-
-#### Table `permissions` (Nouveau)
-| Colonne | Type | Contraintes | Description |
-|---------|------|-------------|-------------|
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | Identifiant unique |
-| name | VARCHAR | UNIQUE, NOT NULL | Nom de la permission (ex: USER_READ) |
-| description | VARCHAR(500) | - | Description de l'action autorisée |
-
-#### Table `role_permissions` (Table de jointure N:M)
-| Colonne | Type | Contraintes | Description |
-|---------|------|-------------|-------------|
-| role_id | BIGINT | FOREIGN KEY → roles(id) | Référence au rôle |
-| permission_id | BIGINT | FOREIGN KEY → permissions(id) | Référence à la permission |
-
-#### Table `credentials`
-| Colonne | Type | Contraintes | Description |
-|---------|------|-------------|-------------|
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | Identifiant unique |
-| email | VARCHAR | UNIQUE, NOT NULL | Email de l'utilisateur |
-| phone_number | VARCHAR | UNIQUE | Numéro de téléphone (optionnel) |
-| password | VARCHAR | NOT NULL | Mot de passe encodé (BCrypt) |
-| user_id | BIGINT | FOREIGN KEY → users(id), UNIQUE, NOT NULL | Référence à l'utilisateur |
-
----
-
-## ⚙️ Couche Configuration
-
-### 🔐 SecurityConfig.java
-
-**Rôle** : Configure la sécurité de l'application avec Spring Security.
-
-```java
-@Configuration
-@EnableWebSecurity
-@EnableMethodSecurity
-public class SecurityConfig {
-    // ...
-}
-```
-
-| Annotation | Description |
-|------------|-------------|
-| `@Configuration` | Indique une classe de configuration Spring |
-| `@EnableWebSecurity` | Active Spring Security |
-| `@EnableMethodSecurity` | Active la sécurité au niveau des méthodes (@PreAuthorize) |
-
-**Fonctionnalités principales** :
-- **PasswordEncoder** : Encode les mots de passe avec BCrypt
-- **AuthenticationManager** : Gère l'authentification
-- **SecurityFilterChain** : Définit les règles de sécurité
-  - CSRF désactivé (API REST stateless)
-  - Sessions stateless (pas de session côté serveur)
-  - JwtFilter ajouté avant le filtre standard
-
-### 🔑 JwtUtils.java
-
-**Rôle** : Gère la création et validation des tokens JWT.
-
-**Méthodes principales** :
-| Méthode | Description |
-|---------|-------------|
-| `generateToken(username)` | Crée un nouveau token JWT |
-| `extractUsername(token)` | Extrait le nom d'utilisateur du token |
-| `validateToken(token, userDetails)` | Vérifie si le token est valide |
-| `isTokenExpired(token)` | Vérifie si le token a expiré |
-
-### 🚀 DataInitializer.java
-
-**Rôle** : Initialise les données au démarrage de l'application.
-
-Au démarrage, cette classe :
-1. Vérifie si le rôle USER existe, sinon le crée
-2. Vérifie si le rôle ADMIN existe, sinon le crée
-
-### 📖 OpenApiConfig.java
-
-**Rôle** : Configure Swagger/OpenAPI pour la documentation de l'API.
-
-Configure :
-- Titre et description de l'API
-- Schéma d'authentification Bearer JWT
-- Interface accessible sur `/swagger-ui.html`
-
----
-
-## 🎮 Couche Controller
-
-### AuthController.java
-
-**Base URL** : `/api/auth`
-
-| Endpoint | Méthode | Description |
-|----------|---------|-------------|
-| `/register` | POST | Inscription d'un nouvel utilisateur |
-| `/login` | POST | Connexion et obtention du token JWT |
-
-**Flux d'inscription** :
-1. Vérifie que username, email et password sont fournis
-2. Vérifie que le username n'est pas déjà pris
-3. Vérifie que l'email n'est pas déjà utilisé
-4. Vérifie que le téléphone n'est pas déjà utilisé (si fourni)
-5. Récupère le rôle (USER par défaut)
-6. Crée l'utilisateur avec ses credentials
-7. Encode le mot de passe avec BCrypt
-8. Sauvegarde en base de données
-
-**Flux de connexion** :
-1. Vérifie les identifiants
-2. Authentifie via AuthenticationManager
-3. Génère un token JWT
-4. Retourne le token au client
-
-### UserController.java
-
-**Base URL** : `/api/users`
-
-| Endpoint | Méthode | Accès (Permission requise) | Description |
-|----------|---------|-------|-------------|
-| `/` | GET | `USER_READ` | Liste tous les utilisateurs |
-| `/{id}` | GET | `USER_READ` | Récupère un utilisateur par ID |
-| `/` | POST | `USER_CREATE` | Crée un nouvel utilisateur |
-| `/{id}` | PUT | `USER_UPDATE` | Modifie un utilisateur |
-| `/{id}` | DELETE | `USER_DELETE` | Supprime un utilisateur |
-
-### HomeController.java
-
-**Base URL** : `/`
-
-| Endpoint | Méthode | Description |
-|----------|---------|-------------|
-| `/` | GET | Page d'accueil avec informations sur l'API |
-
----
-
-## 🔧 Couche Service
-
-### UserService.java
-
-**Rôle** : Contient la logique métier pour la gestion des utilisateurs.
-
-| Méthode | Description |
-|---------|-------------|
-| `getAllUsers()` | Récupère tous les utilisateurs |
-| `getUserById(id)` | Récupère un utilisateur par ID |
-| `createUser(user)` | Crée un nouvel utilisateur |
-| `updateUser(id, user)` | Met à jour un utilisateur |
-| `deleteUser(id)` | Supprime un utilisateur |
-
-### CustomUserDetailsService.java
-
-**Rôle** : Implémente `UserDetailsService` de Spring Security.
-
-Cette classe :
-1. Charge un utilisateur par son username
-2. Récupère ses credentials (mot de passe)
-3. Crée les autorités (rôles) sous forme `ROLE_ADMIN` ou `ROLE_USER`
-4. Retourne un objet UserDetails utilisé par Spring Security
-
----
-
-## 📦 Couche Repository
-
-Les repositories héritent de `JpaRepository` et fournissent des méthodes CRUD automatiques.
-
-### UserRepository
-```java
-User findByUsername(String username);
-```
-
-### RoleRepository
-```java
-Role findByName(RoleType name);
-```
-
-### CredentialsRepository
-```java
-Credentials findByEmail(String email);
-Credentials findByPhoneNumber(String phoneNumber);
-```
-
----
-
-## 🔄 Flux d'authentification
-
-### 1. Inscription
-
-```
-┌─────────┐    POST /api/auth/register    ┌───────────────┐
-│ CLIENT  │ ─────────────────────────────►│ AuthController│
-└─────────┘   {username, email, password} └───────┬───────┘
-                                                  │
-                                                  ▼
-                                          ┌───────────────┐
-                                          │  Validations  │
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-                                          ┌───────────────┐
-                                          │PasswordEncoder│ (BCrypt)
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-                                          ┌───────────────┐
-                                          │ UserRepository│
-                                          │    .save()    │
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-┌─────────┐        User créé              ┌───────────────┐
-│ CLIENT  │ ◄─────────────────────────────│   Response    │
-└─────────┘                               └───────────────┘
-```
-
-### 2. Connexion
-
-```
-┌─────────┐     POST /api/auth/login      ┌───────────────┐
-│ CLIENT  │ ─────────────────────────────►│ AuthController│
-└─────────┘   {username, password}        └───────┬───────┘
-                                                  │
-                                                  ▼
-                                          ┌───────────────────────┐
-                                          │ AuthenticationManager │
-                                          └───────────┬───────────┘
-                                                      │
-                                                      ▼
-                                          ┌───────────────────────┐
-                                          │CustomUserDetailsService│
-                                          │   loadUserByUsername() │
-                                          └───────────┬───────────┘
-                                                      │
-                                                      ▼
-                                          ┌───────────────┐
-                                          │   JwtUtils    │
-                                          │generateToken()│
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-┌─────────┐      {token, type: "Bearer"}  ┌───────────────┐
-│ CLIENT  │ ◄─────────────────────────────│   Response    │
-└─────────┘                               └───────────────┘
-```
-
-### 3. Requête authentifiée
-
-```
-┌─────────┐   GET /api/users              ┌───────────────┐
-│ CLIENT  │ ─────────────────────────────►│   JwtFilter   │
-└─────────┘  Header: Authorization:       └───────┬───────┘
-             Bearer <token>                       │
-                                                  ▼
-                                          ┌───────────────┐
-                                          │   JwtUtils    │
-                                          │extractUsername│
-                                          │validateToken()│
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-                                          ┌───────────────────────┐
-                                          │CustomUserDetailsService│
-                                          │   loadUserByUsername() │
-                                          └───────────┬───────────┘
-                                                      │
-                                                      ▼
-                                          ┌───────────────┐
-                                          │@PreAuthorize  │
-                                          │hasAuthority(  │
-                                          │  'USER_READ') │
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-                                          ┌───────────────┐
-                                          │UserController │
-                                          │ getAllUsers() │
-                                          └───────┬───────┘
-                                                  │
-                                                  ▼
-┌─────────┐       Liste des users         ┌───────────────┐
-│ CLIENT  │ ◄─────────────────────────────│   Response    │
-└─────────┘                               └───────────────┘
-```
-
----
-
-## 📡 API Endpoints
-
-### Authentification
-
-#### POST `/api/auth/register`
-**Corps de la requête** :
-```json
-{
-  "username": "john_doe",
-  "email": "john@example.com",
-  "phoneNumber": "+33612345678",
-  "password": "password123",
-  "roleType": "USER"
-}
-```
-
-**Réponse** (200 OK) :
-```json
-{
-  "id": 1,
-  "username": "john_doe",
-  "role": {
-    "id": 1,
-    "name": "USER",
-    "description": "Utilisateur standard avec permissions de base"
-  },
-  "credentials": {
-    "id": 1,
-    "email": "john@example.com",
-    "phoneNumber": "+33612345678"
-  }
-}
-```
-
-#### POST `/api/auth/login`
-**Corps de la requête** :
-```json
-{
-  "username": "john_doe",
-  "password": "password123"
-}
-```
-
-**Réponse** (200 OK) :
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "type": "Bearer"
-}
-```
-
-### Gestion des utilisateurs (nécessite token ADMIN)
-
-#### GET `/api/users`
-**Header** : `Authorization: Bearer <token>`
-
-**Réponse** : Liste de tous les utilisateurs
-
-#### GET `/api/users/{id}`
-**Réponse** : Détails d'un utilisateur
-
-#### POST `/api/users`
-**Corps** : Données du nouvel utilisateur
-
-#### PUT `/api/users/{id}`
-**Corps** : Données à mettre à jour
-
-#### DELETE `/api/users/{id}`
-**Réponse** : 204 No Content
-
----
-
-## 🚀 Comment utiliser l'application
-
-### 1. Prérequis
-
-- Java 17+
-- Maven
-- Docker (recommandé) ou PostgreSQL installé localement
-
-### 2. Lancer PostgreSQL avec Docker
-
-La méthode la plus simple pour démarrer PostgreSQL est d'utiliser Docker :
+This starts the full stack: PostgreSQL, RabbitMQ, MailHog, 3 backend instances, and Nginx.
 
 ```bash
-# Télécharger l'image PostgreSQL et démarrer le conteneur
+# Start everything
+docker compose up -d --build
+
+# Check that all services are running
+docker compose ps
+
+# View logs
+docker compose logs -f backend
+
+# Stop everything
+docker compose down
+```
+
+Once started, the services are available at:
+
+| Service         | URL                          |
+| --------------- | ---------------------------- |
+| **API (Nginx)** | http://localhost              |
+| **Swagger UI**  | http://localhost/swagger-ui/index.html |
+| **MailHog UI**  | http://localhost:8025         |
+| **RabbitMQ UI** | http://localhost:15672 (guest/guest) |
+
+> All API requests go through Nginx on port **80**. Nginx load-balances across 3 backend instances and validates JWT tokens on protected routes.
+
+---
+
+### Option 2: Run Locally
+
+You need PostgreSQL running locally (or via Docker).
+
+```bash
+# 1. Start PostgreSQL
 docker run --name postgres \
   -e POSTGRES_PASSWORD=dhia \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_DB=project_spring \
   -p 5432:5432 \
   -d postgres:latest
-```
 
-**Commandes utiles Docker :**
+# 2. (Optional) Start RabbitMQ for email verification
+docker run --name rabbitmq \
+  -p 5672:5672 -p 15672:15672 \
+  -d rabbitmq:3-management
 
-```bash
-# Vérifier que le conteneur est en cours d'exécution
-docker ps -f name=postgres
+# 3. (Optional) Start MailHog for email capture
+docker run --name mailhog \
+  -p 1025:1025 -p 8025:8025 \
+  -d mailhog/mailhog
 
-# Arrêter le conteneur
-docker stop postgres
-
-# Redémarrer le conteneur
-docker start postgres
-
-# Supprimer le conteneur (si besoin de réinitialiser)
-docker rm -f postgres
-
-# Se connecter à PostgreSQL dans le conteneur
-docker exec -it postgres psql -U postgres -d project_spring
-```
-
-### 3. Configuration
-
-Modifier `src/main/resources/application.properties` :
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/project_spring
-spring.datasource.username=postgres
-spring.datasource.password=votre_mot_de_passe
-```
-
-### 4. Lancer l'application
-
-```bash
+# 4. Run the application
 ./mvnw spring-boot:run
 ```
 
-### 5. Accéder à Swagger
-
-Ouvrir : http://localhost:8080/swagger-ui.html
-
-### 6. Tester l'API
-
-1. **S'inscrire** : POST `/api/auth/register`
-2. **Se connecter** : POST `/api/auth/login` → récupérer le token
-3. **Utiliser le token** : Ajouter `Authorization: Bearer <token>` dans les headers
+The API will be available at http://localhost:8080 and Swagger UI at http://localhost:8080/swagger-ui/index.html.
 
 ---
 
-## 📌 Oui, SecurityConfig.java est bien utilisé !
+## API Endpoints
 
-Le fichier `SecurityConfig.java` est **essentiel** au projet car :
+### Authentication (`/api/auth`)
 
-1. ✅ Il configure **Spring Security** pour l'application
-2. ✅ Il définit le **PasswordEncoder** (BCrypt) utilisé partout
-3. ✅ Il crée l'**AuthenticationManager** utilisé dans AuthController
-4. ✅ Il configure la **chaîne de filtres de sécurité**
-5. ✅ Il intègre le **JwtFilter** pour la vérification des tokens
+| Method | Endpoint              | Auth Required | Description                        |
+| ------ | --------------------- | ------------- | ---------------------------------- |
+| POST   | `/api/auth/register`  | No            | Register a new user                |
+| POST   | `/api/auth/login`     | No            | Login and get a JWT token          |
+| GET    | `/api/auth/verify`    | No            | Verify email via token link        |
+| POST   | `/api/auth/logout`    | Yes           | Invalidate JWT token (blacklist)   |
+| GET    | `/api/auth/validate`  | Yes           | Validate JWT (used by Nginx)       |
 
-Sans ce fichier, l'authentification JWT ne fonctionnerait pas !
+### User Management (`/api/users`)
+
+| Method | Endpoint           | Permission Required | Description         |
+| ------ | ------------------ | ------------------- | ------------------- |
+| GET    | `/api/users`       | USER_READ           | List all users      |
+| GET    | `/api/users/{id}`  | USER_READ           | Get user by ID      |
+| POST   | `/api/users`       | USER_CREATE         | Create a new user   |
+| PUT    | `/api/users/{id}`  | USER_UPDATE         | Update a user       |
+| DELETE | `/api/users/{id}`  | USER_DELETE          | Delete a user       |
+
+### Roles & Permissions
+
+| Role    | Permissions                                          |
+| ------- | ---------------------------------------------------- |
+| `ADMIN` | USER_READ, USER_CREATE, USER_UPDATE, USER_DELETE     |
+| `USER`  | USER_READ                                            |
+
+### Quick Test with curl
+
+```bash
+# 1. Register
+curl -X POST http://localhost/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"john","email":"john@example.com","password":"secret123"}'
+
+# 2. Login (get token)
+curl -X POST http://localhost/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"john","password":"secret123"}'
+
+# 3. Use token to access protected endpoints
+curl http://localhost/api/users \
+  -H "Authorization: Bearer <paste-token-here>"
+
+# 4. Logout (invalidate token)
+curl -X POST http://localhost/api/auth/logout \
+  -H "Authorization: Bearer <paste-token-here>"
+```
 
 ---
 
-## 🎓 Résumé pour les débutants
+## Using Swagger UI
 
-| Concept | Ce que c'est | Fichier(s) |
-|---------|--------------|------------|
-| **Entité** | Représente une table en BD | User.java, Role.java, Credentials.java |
-| **Repository** | Accès à la BD | *Repository.java |
-| **Service** | Logique métier | UserService.java |
-| **Controller** | Points d'entrée API | *Controller.java |
-| **DTO** | Objets de transfert | LoginRequest.java, RegisterRequest.java |
-| **JWT** | Token d'authentification | JwtUtils.java, JwtFilter.java |
-| **Security** | Configuration sécurité | SecurityConfig.java |
+Swagger UI provides an interactive interface to explore and test all API endpoints.
+
+### Step 1: Open Swagger UI
+
+- **Docker Compose**: http://localhost/swagger-ui/index.html
+- **Local**: http://localhost:8080/swagger-ui/index.html
+
+### Step 2: Register and Login
+
+1. Expand **POST /api/auth/register** and click **Try it out**
+2. Enter the request body:
+   ```json
+   {
+     "username": "john",
+     "email": "john@example.com",
+     "password": "secret123"
+   }
+   ```
+3. Click **Execute** — you should get a `201` response
+4. Expand **POST /api/auth/login** and click **Try it out**
+5. Enter:
+   ```json
+   {
+     "username": "john",
+     "password": "secret123"
+   }
+   ```
+6. Click **Execute** — copy the `token` value from the response
+
+### Step 3: Authorize
+
+1. Click the **Authorize** button (lock icon) at the top of the page
+2. In the **Value** field, type: `Bearer <paste-token-here>`
+3. Click **Authorize**, then **Close**
+
+All subsequent requests from Swagger UI will include the JWT token automatically.
+
+### Step 4: Test Protected Endpoints
+
+You can now expand any endpoint under **User Management** and click **Try it out** to test it. The JWT token will be sent automatically in the `Authorization` header.
+
+**Example: Create a user (requires ADMIN role)**
+
+Expand **POST /api/users**, click **Try it out**, and enter:
+```json
+{
+  "username": "newuser",
+  "role": { "name": "USER" },
+  "credentials": {
+    "email": "newuser@example.com",
+    "password": "password123"
+  }
+}
+```
+
+> If you get a `403 Forbidden`, your user does not have the required permission. Register with `"roleType": "ADMIN"` to get full access.
+
+### Step 5: View the OpenAPI Spec
+
+The raw JSON spec is available at:
+- **Docker Compose**: http://localhost/v3/api-docs
+- **Local**: http://localhost:8080/v3/api-docs
 
 ---
 
-**Auteur** : Projet réalisé dans le cadre du cours "Introduction to Software Architecture"  
-**Version** : 1.0.0
+## Architecture
+
+```
+                         ┌──────────────┐
+                         │    Client    │
+                         └──────┬───────┘
+                                │
+                                v
+                         ┌──────────────┐
+                         │    Nginx     │  Port 80
+                         │  (Gateway)   │  JWT validation + load balancing
+                         └──────┬───────┘
+                                │
+                 ┌──────────────┼──────────────┐
+                 v              v              v
+          ┌────────────┐ ┌────────────┐ ┌────────────┐
+          │  Backend 1 │ │  Backend 2 │ │  Backend 3 │  Port 8080
+          │ Spring Boot│ │ Spring Boot│ │ Spring Boot│
+          └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
+                │              │              │
+                └──────────────┼──────────────┘
+                        ┌──────┴──────┐
+                        v             v
+                 ┌────────────┐ ┌──────────┐
+                 │ PostgreSQL │ │ RabbitMQ │
+                 │   (DB)     │ │ (Async)  │
+                 └────────────┘ └────┬─────┘
+                                     │
+                                     v
+                               ┌──────────┐
+                               │ MailHog  │
+                               │ (Email)  │
+                               └──────────┘
+```
+
+### Authentication Flow
+
+1. User registers via `POST /api/auth/register`
+2. A verification email is sent asynchronously via RabbitMQ + MailHog
+3. User clicks the verification link to activate the account
+4. User logs in via `POST /api/auth/login` and receives a JWT token (15 min expiry)
+5. Protected endpoints require `Authorization: Bearer <token>` header
+6. Nginx validates the token via a subrequest to `/api/auth/validate` before proxying
+7. Logout adds the token to a database-backed blacklist shared across all instances
+
+---
+
+**Course**: Introduction to Software Architecture

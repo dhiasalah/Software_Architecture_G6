@@ -333,7 +333,7 @@ public class AuthController {
 
         // --- ÉTAPE 2 : Extraire le token et l'ajouter à la blacklist ---
         String jwt = authHeader.substring(7); // Enlever "Bearer "
-        tokenBlacklistService.blacklist(jwt);
+        tokenBlacklistService.blacklist(jwt, jwtUtils.extractExpiration(jwt));
         System.out.println("🚪 Logout : token blacklisté pour " + jwtUtils.extractUsername(jwt));
 
         Map<String, Object> response = new HashMap<>();

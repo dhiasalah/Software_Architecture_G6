@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose ps:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(__NEW_LINE_a515efc11201d391__ echo:*)",
+      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\" http://localhost:80/)",
+      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\" -X POST http://localhost:80/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"testuser1\"\",\"\"email\"\":\"\"testuser1@test.com\"\",\"\"password\"\":\"\"TestPass123\"\"}')",
+      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\" -X POST http://localhost:80/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"adminuser\"\",\"\"email\"\":\"\"admin@test.com\"\",\"\"password\"\":\"\"AdminPass123\"\",\"\"roleType\"\":\"\"ADMIN\"\"}')",
+      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\" -X POST http://localhost:80/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"adminuser\"\",\"\"password\"\":\"\"AdminPass123\"\"}')",
+      "Bash(docker builder:*)"
+    ]
+  }
+}

@@ -141,15 +141,19 @@ public class UserService {
             }
         }
 
-        // Récupérer le rôle
-        Role role = roleRepository.findByName(updatedUser.getRole().getName());
-        if (role == null) {
-            throw new RuntimeException("Le rôle '" + updatedUser.getRole().getName() + "' n'existe pas");
+        // Mettre à jour le username si fourni
+        if (updatedUser.getUsername() != null) {
+            existingUser.setUsername(updatedUser.getUsername());
         }
 
-        // Mettre à jour les données de l'utilisateur
-        existingUser.setUsername(updatedUser.getUsername());
-        existingUser.setRole(role);
+        // Mettre à jour le rôle si fourni
+        if (updatedUser.getRole() != null && updatedUser.getRole().getName() != null) {
+            Role role = roleRepository.findByName(updatedUser.getRole().getName());
+            if (role == null) {
+                throw new RuntimeException("Le rôle '" + updatedUser.getRole().getName() + "' n'existe pas");
+            }
+            existingUser.setRole(role);
+        }
 
         // Mettre à jour les credentials si fournis
         if (updatedUser.getCredentials() != null) {

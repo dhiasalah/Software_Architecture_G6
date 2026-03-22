@@ -185,7 +185,7 @@ public class JwtUtils {
      * @param token Le token JWT
      * @return La date d'expiration
      */
-    private Date extractExpiration(String token) {
+    public Date extractExpiration(String token) {
         // Claims::getExpiration = Fonction qui récupère le claim "exp" (expiration)
         return extractClaim(token, Claims::getExpiration);
     }
