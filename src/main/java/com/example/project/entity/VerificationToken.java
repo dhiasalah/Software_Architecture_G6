@@ -3,7 +3,7 @@ package com.example.project.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * ENTITÉ VERIFICATION TOKEN
@@ -59,7 +59,7 @@ public class VerificationToken {
      * Passé ce délai, le token est invalide et ne peut plus être utilisé
      */
     @Column(nullable = false)
-    private LocalDateTime expiresAt;
+    private Instant expiresAt;
 
     /**
      * L'utilisateur à qui appartient ce token de vérification

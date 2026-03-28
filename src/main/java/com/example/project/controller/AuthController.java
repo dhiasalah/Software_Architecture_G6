@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -170,7 +169,7 @@ public class AuthController {
         VerificationToken verificationToken = new VerificationToken();
         verificationToken.setTokenId(tokenId);
         verificationToken.setTokenHash(tokenHash);  // On stocke le HASH, pas le token en clair !
-        verificationToken.setExpiresAt(LocalDateTime.now().plusMinutes(tokenExpirationMinutes));
+        verificationToken.setExpiresAt(Instant.now().plusSeconds(tokenExpirationMinutes * 60L));
         verificationToken.setUser(savedUser);
 
         verificationTokenRepository.save(verificationToken);
@@ -233,7 +232,7 @@ public class AuthController {
         }
 
         // --- ÉTAPE 2 : Vérifier l'expiration ---
-        if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+        if (verificationToken.getExpiresAt().isBefore(Instant.now())) {
             System.out.println("❌ Token expiré : tokenId=" + tokenId + " (expiresAt=" + verificationToken.getExpiresAt() + ")");
             // On supprime le token expiré pour nettoyer la base
             verificationTokenRepository.deleteByTokenId(tokenId);
