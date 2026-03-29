@@ -1,13 +1,14 @@
 package com.example.project.configuration;
 
-import com.example.project.entity.Permission;
-import com.example.project.entity.PermissionType;
-import com.example.project.entity.Role;
-import com.example.project.entity.RoleType;
+import com.example.project.entity.*;
+import com.example.project.repository.CredentialsRepository;
 import com.example.project.repository.PermissionRepository;
 import com.example.project.repository.RoleRepository;
+import com.example.project.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -31,6 +32,18 @@ public class DataInitializer implements CommandLineRunner {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final UserRepository userRepository;
+    private final CredentialsRepository credentialsRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.admin.username}")
+    private String adminUsername;
+
+    @Value("${app.admin.email}")
+    private String adminEmail;
+
+    @Value("${app.admin.password}")
+    private String adminPassword;
 
     @Override
     public void run(String... args) throws Exception {
@@ -74,6 +87,26 @@ public class DataInitializer implements CommandLineRunner {
 
             roleRepository.save(adminRole);
             System.out.println("✅ Rôle ADMIN créé avec toutes les permissions");
+        }
+
+        // --- 3. Créer le compte admin par défaut ---
+        if (userRepository.findByUsername(adminUsername) == null) {
+            Role adminRole = roleRepository.findByName(RoleType.ADMIN);
+
+            User admin = new User();
+            admin.setUsername(adminUsername);
+            admin.setRole(adminRole);
+            admin.setVerified(true);
+            admin.setEnabled(true);
+
+            Credentials credentials = new Credentials();
+            credentials.setEmail(adminEmail);
+            credentials.setPassword(passwordEncoder.encode(adminPassword));
+            credentials.setUser(admin);
+            admin.setCredentials(credentials);
+
+            userRepository.save(admin);
+            System.out.println("✅ Compte admin par défaut créé (username: " + adminUsername + ")");
         }
     }
 }

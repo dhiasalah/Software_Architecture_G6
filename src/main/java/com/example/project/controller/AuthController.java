@@ -137,10 +137,10 @@ public class AuthController {
         }
 
         // --- ÉTAPE 2 : Créer l'utilisateur en base (verified = false) ---
-        RoleType roleType = (request.getRoleType() != null) ? request.getRoleType() : RoleType.USER;
-        Role userRole = roleRepository.findByName(roleType);
+        // Always assign USER role on self-registration — only an ADMIN can promote via PUT /api/users/{id}
+        Role userRole = roleRepository.findByName(RoleType.USER);
         if (userRole == null) {
-            return ResponseEntity.badRequest().body("Role not found: " + roleType);
+            return ResponseEntity.badRequest().body("Default role USER not found");
         }
 
         User user = new User();
